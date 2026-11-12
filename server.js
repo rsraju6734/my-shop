@@ -12,31 +12,53 @@ db.exec(`CREATE TABLE IF NOT EXISTS products (
 )`);
 
 app.use(express.json());
+
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234";
+
+// admin page ar admin API lock korar function
+function checkAuth(req, res, next) {
+  const auth = req.headers.authorization || "";
+  const encoded = auth.split(" ")[1] || "";
+  const decoded = Buffer.from(encoded, "base64").toString();
+  const password = decoded.split(":")[1];
+
+  if (password === ADMIN_PASSWORD) {
+    return next();
+  }
+  res.set("WWW-Authenticate", 'Basic realm="Admin"');
+  res.status(401).send("Password dao");
+}
+
+// admin.html lock
+app.get("/admin.html", checkAuth, (req, res) => {
+  res.sendFile(__dirname + "/public/admin.html");
+});
+
 app.use(express.static("public"));
 
-// sob product dekha
+// sob product dekha (shobai dekhte parbe)
 app.get("/api/products", (req, res) => {
   res.json(db.prepare("SELECT * FROM products").all());
 });
 
-// notun product add
-app.post("/api/products", (req, res) => {
+// notun product add (password lagbe)
+app.post("/api/products", checkAuth, (req, res) => {
   const { name, price, stock } = req.body;
   const r = db.prepare("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)")
               .run(name, price, stock);
   res.json({ id: r.lastInsertRowid });
 });
 
-// product update
-app.put("/api/products/:id", (req, res) => {
+// product update (password lagbe)
+app.put("/api/products/:id", checkAuth, (req, res) => {
   const { name, price, stock } = req.body;
   db.prepare("UPDATE products SET name=?, price=?, stock=? WHERE id=?")
     .run(name, price, stock, req.params.id);
   res.json({ ok: true });
 });
 
-// product delete
-app.delete("/api/products/:id", (req, res) => {
+// product delete (password lagbe)
+app.delete("/api/products/:id", checkAuth, (req, res) => {
   db.prepare("DELETE FROM products WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });
