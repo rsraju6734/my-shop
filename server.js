@@ -1,15 +1,20 @@
 const express = require("express");
-const Database = require("better-sqlite3");
+const { Pool } = require("pg");
 
 const app = express();
-const db = new Database("shop.db");
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
-db.exec(`CREATE TABLE IF NOT EXISTS products (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  price REAL NOT NULL,
-  stock INTEGER DEFAULT 0
-)`);
+async function setupDb() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS products (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    price DOUBLE PRECISION NOT NULL,
+    stock INTEGER DEFAULT 0
+  )`);
+}
 
 app.use(express.json());
 
@@ -37,31 +42,61 @@ app.get("/admin.html", checkAuth, (req, res) => {
 app.use(express.static("public"));
 
 // sob product dekha (shobai dekhte parbe)
-app.get("/api/products", (req, res) => {
-  res.json(db.prepare("SELECT * FROM products").all());
+app.get("/api/products", async (req, res) => {
+  try {
+    const r = await pool.query("SELECT * FROM products ORDER BY id");
+    res.json(r.rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
 // notun product add (password lagbe)
-app.post("/api/products", checkAuth, (req, res) => {
-  const { name, price, stock } = req.body;
-  const r = db.prepare("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)")
-              .run(name, price, stock);
-  res.json({ id: r.lastInsertRowid });
+app.post("/api/products", checkAuth, async (req, res) => {
+  try {
+    const { name, price, stock } = req.body;
+    const r = await pool.query(
+      "INSERT INTO products (name, price, stock) VALUES ($1, $2, $3) RETURNING id",
+      [name, price, stock]
+    );
+    res.json({ id: r.rows[0].id });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
 // product update (password lagbe)
-app.put("/api/products/:id", checkAuth, (req, res) => {
-  const { name, price, stock } = req.body;
-  db.prepare("UPDATE products SET name=?, price=?, stock=? WHERE id=?")
-    .run(name, price, stock, req.params.id);
-  res.json({ ok: true });
+app.put("/api/products/:id", checkAuth, async (req, res) => {
+  try {
+    const { name, price, stock } = req.body;
+    await pool.query(
+      "UPDATE products SET name=$1, price=$2, stock=$3 WHERE id=$4",
+      [name, price, stock, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
 // product delete (password lagbe)
-app.delete("/api/products/:id", checkAuth, (req, res) => {
-  db.prepare("DELETE FROM products WHERE id=?").run(req.params.id);
-  res.json({ ok: true });
+app.delete("/api/products/:id", checkAuth, async (req, res) => {
+  try {
+    await pool.query("DELETE FROM products WHERE id=$1", [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Running on " + PORT));
+setupDb()
+  .then(() => app.listen(PORT, () => console.log("Running on " + PORT)))
+  .catch((e) => {
+    console.error("Database connect hoy ni:", e);
+    process.exit(1);
+  });
