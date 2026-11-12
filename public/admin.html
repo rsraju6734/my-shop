@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin - My Shop</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 20px auto; padding: 0 10px; }
+    input { padding: 8px; margin: 4px 0; width: 100%; box-sizing: border-box; }
+    button { padding: 8px 14px; margin: 4px 2px; cursor: pointer; }
+    .row { border: 1px solid #ccc; padding: 10px; margin: 8px 0; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Admin Panel</h1>
+
+  <h3>Notun product add koro</h3>
+  <input id="name" placeholder="Product er naam">
+  <input id="price" type="number" placeholder="Dam (Taka)">
+  <input id="stock" type="number" placeholder="Stock koyta">
+  <button onclick="addProduct()">Add koro</button>
+
+  <h3>Sob product</h3>
+  <div id="list"></div>
+
+  <script>
+    async function load() {
+      const res = await fetch("/api/products");
+      const products = await res.json();
+      document.getElementById("list").innerHTML = products.map(p => `
+        <div class="row">
+          <input id="n${p.id}" value="${p.name}">
+          <input id="p${p.id}" type="number" value="${p.price}">
+          <input id="s${p.id}" type="number" value="${p.stock}">
+          <button onclick="updateProduct(${p.id})">Update</button>
+          <button onclick="deleteProduct(${p.id})">Delete</button>
+        </div>
+      `).join("");
+    }
+
+    async function addProduct() {
+      const name = document.getElementById("name").value;
+      const price = document.getElementById("price").value;
+      const stock = document.getElementById("stock").value;
+      if (!name || !price) { alert("Naam ar dam dao"); return; }
+      await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, price: Number(price), stock: Number(stock) || 0 })
+      });
+      document.getElementById("name").value = "";
+      document.getElementById("price").value = "";
+      document.getElementById("stock").value = "";
+      load();
+    }
+
+    async function updateProduct(id) {
+      await fetch("/api/products/" + id, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: document.getElementById("n" + id).value,
+          price: Number(document.getElementById("p" + id).value),
+          stock: Number(document.getElementById("s" + id).value)
+        })
+      });
+      alert("Update hoyeche");
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm("Sotti delete korbe?")) return;
+      await fetch("/api/products/" + id, { method: "DELETE" });
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>

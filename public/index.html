@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Shop</title>
+</head>
+<body>
+  <h1>My Shop</h1>
+  <div id="list"></div>
+
+  <script>
+    fetch("/api/products")
+      .then(r => r.json())
+      .then(products => {
+        const list = document.getElementById("list");
+        list.innerHTML = products.map(p =>
+          `<p><b>${p.name}</b> - ${p.price} Taka (stock: ${p.stock})</p>`
+        ).join("");
+      });
+  </script>
+</body>
+</html>
